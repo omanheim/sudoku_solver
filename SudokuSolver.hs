@@ -16,13 +16,17 @@ sTail (_:xs) = xs
 
 -- Converts a row-oriented matrix to a column-oriented matrix
 rowToCol :: [[Int]] -> [[Int]]
-rowToCol ([]:_) = [[]]
+rowToCol ([]:_) = []
 rowToCol rm     = (map sHead rm):(rowToCol (map sTail rm))
+
+rTBHelper :: [[Int]] -> [[Int]]
+rTBHelper [] = []
+rTBHelper w  = (foldl (++) [] (take 3 w)):(rTBHelper $ drop 3 w)
 
 -- Converts a row-oriented matrix to a box-oriented matrix
 rowToBox :: [[Int]] -> [[Int]]
-rowToBox ([]:_) = [[]]
-rowToBox rm     = ((foldl (\x -> (foldl (++) [] $ take 3 x)) []) $ (map (take 3) rm)):(rowToCol (map (drop 3) rm))
+rowToBox ([]:_) = []
+rowToBox rm     = (rTBHelper $ (map (take 3) rm)) ++ (rowToBox (map (drop 3) rm))
 
 -- Return true if the input list contains exactly the numbers 1-9
 verifyGroup :: [Int] -> Bool
