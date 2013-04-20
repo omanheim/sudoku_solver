@@ -39,3 +39,26 @@ verifyGroups = foldl (&&) True . map verifyGroup
 -- Checks if a (row-oriented) Sudoku is validly solved
 isValid :: [[Int]] -> Bool
 isValid rm = verifyGroups rm && (verifyGroups $ rowToCol rm) && (verifyGroups $ rowToBox rm)
+
+-- Checks if one value is missing from a line
+oneMissing :: [Int] -> Int
+oneMissing l | length (filter (==0) l) == 1 = sHead $ filter (\x -> not $ elem x l) [1..9]
+oneMissing l = -1
+
+-- Replaces a zero in a line with a given value
+replaceZero :: [Int] -> Int -> [Int]
+replaceZero (0:xs) i = (i:xs)
+replaceZero (x:xs) i   = x:(replaceZero xs i)
+
+-- Completes a line if it is missing a single value
+fillSinglesGroup :: [Int] -> [Int]
+fillSinglesGroup l | not $ oneMissing l == -1 = replaceZero l (oneMissing l)
+fillSinglesGroup l 			      = l 
+
+-- Completes each line if it is missing a single value
+fillSinglesGroups :: [[Int]] -> [[Int]]
+fillSinglesGroups = map fillSinglesGroup
+
+-- Solves for obvious numbers in a Sudoku
+fillSingles :: [[Int]] -> [[Int]]
+fillSingles rm = fillSinglesGroups $ rowToBox $ fillSinglesGroups $ rowToCol $ fillSinglesGroups $ rowToCol rm
