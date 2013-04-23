@@ -1,5 +1,6 @@
 module SudokuIO where
 
+import System.Environment
 import Control.Exception
 import Data.Char
 import SudokuExceptions
@@ -17,11 +18,17 @@ format (x:xs) l
 	| otherwise = throw InvalidSudokuFormatException
 
 -- Translates an [[Int]] back to a String for printing
-deformat :: [[Int]] -> String
-deformat []          = ""
-deformat ([]:xs)     = '\n':(deformat xs)
-deformat ((0:tl):xs) = '-':(deformat (tl:xs))
-deformat ((h:tl):xs) = (intToDigit h):(deformat (tl:xs))
+deformat :: [[Int]] -> Int -> Int -> String
+deformat [] _ _          = ""
+deformat ([]:xs) _ 2     = '\n':'\n':(deformat xs 0 0)
+deformat ([]:xs) _ c     = '\n':(deformat xs 0 (c+1))
+deformat ((0:tl):xs) 2 c = '-':' ':(deformat (tl:xs) 0 c)
+deformat ((0:tl):xs) r c = '-':(deformat (tl:xs) (r+1) c)
+deformat ((h:tl):xs) 2 c = (intToDigit h):' ':(deformat (tl:xs) 0 c)
+deformat ((h:tl):xs) r c = (intToDigit h):(deformat (tl:xs) (r+1) c)
 
 main :: IO ()
-main = readFile "diabolicalSudoku.txt" >>= (\f -> putStrLn $ deformat $ solveGuess $ format (read f) [])
+main = getArgs >>= \l ->
+       readFile (head l) >>= \f ->
+       putStrLn "Sudoku Solver!!!\n" >>= \_ ->
+       putStrLn $ (\l -> deformat l 0 0) $ solveGuess $ format (read f) [] 

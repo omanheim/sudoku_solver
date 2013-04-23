@@ -62,8 +62,8 @@ boxToRow xs = bTRHelper cc
 	cc = foldr (++) [] tp
 
 -- Checks if a (row-oriented) Sudoku is validly solved
-isValid :: [[Int]] -> Bool
-isValid rm = verifyRows rm && verifyCols rm && verifyBoxes rm
+isSolved :: [[Int]] -> Bool
+isSolved rm = verifyRows rm && verifyCols rm && verifyBoxes rm
 	where 
 	verifyRows  = applyRows verifyGroup (&&) True
 	verifyCols  = applyCols verifyGroup (&&) True
@@ -94,7 +94,7 @@ fillSingles = fillSinglesBoxes . fillSinglesCols . fillSinglesRows
 solveSimple :: [[Int]] -> ([[Int]],Bool)
 solveSimple xs
 	| xs == a   = (a, False)
-	| isValid a = (a, True)
+	| isSolved a = (a, True)
 	| otherwise = solveSimple a
 	where a = fillSingles xs
 
@@ -221,7 +221,7 @@ branchBoards d = map (\l -> guessCell d sd l) $ navigate d sd
 
 guessBoards :: [Board] -> Board
 guessBoards (x:xs) = case solveHard $ undomainify x of
-	Just u -> if isValid u
+	Just u -> if isSolved u
  		  then domainify u
 		  else guessBoards (xs ++ branchBoards x)
 	Nothing -> guessBoards xs
