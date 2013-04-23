@@ -24,4 +24,4 @@ deformat ((0:tl):xs) = '-':(deformat (tl:xs))
 deformat ((h:tl):xs) = (intToDigit h):(deformat (tl:xs))
 
 main :: IO ()
-main = readFile "simpleSudoku.txt" >>= (\f -> putStrLn $ deformat $ fillSingles $ format (read f) [])
+main = readFile "diabolicalSudoku.txt" >>= (\f -> putStrLn $ deformat $ solveGuess $ format (read f) [])
