@@ -5,6 +5,8 @@ import Data.Char
 import Data.List
 import Control.Exception
 
+----- PART 1: Simple Solver -----
+
 -- Safely returns the tail of a list
 sHead :: [a] -> a
 sHead [] = throw HeadException 
@@ -33,9 +35,11 @@ rowToBox rm     = (rTBHelper $ (map (take 3) rm)) ++ (rowToBox (map (drop 3) rm)
 verifyGroup :: [Int] -> Bool
 verifyGroup l = and $ map (\x -> elem x l) [1..9]
 
+-- Folds a function across each row of an [[Int]]
 applyRows :: ([Int] -> a) -> (a -> b -> b) -> b -> [[Int]] -> b
 applyRows ag f b = foldr f b . map ag
 
+-- Folds a function across each column of an [[Int]]
 applyCols :: ([Int] -> a) -> (a -> b -> b) -> b -> [[Int]] -> b
 applyCols _ _ b ([]:_) = b
 applyCols ag f b l = f (ag (map sHead l)) (applyCols ag f b (map sTail l))
@@ -54,6 +58,7 @@ bTRHelper [] = []
 bTRHelper ([]:[]:[]:xs) = bTRHelper xs
 bTRHelper xs = (foldr (++) [] $ map (take 3) $ take 3 xs):(bTRHelper ((map (drop 3) (take 3 xs)) ++ (drop 3 xs)))
 
+-- Converts a box-oriented matrix into a row-oriented matrix.
 boxToRow :: [[Int]] -> [[Int]]
 boxToRow xs = bTRHelper cc 
 	where
@@ -84,6 +89,8 @@ fillSinglesGroup :: [Int] -> [Int]
 fillSinglesGroup l | not $ oneMissing l == -1 = replaceZero l (oneMissing l)
 fillSinglesGroup l 			      = l 
 
+-- Complete one step of a simple solver: if a single value is missing from a 
+-- row, then a column, then a box, fill it in
 fillSingles :: [[Int]] -> [[Int]]
 fillSingles = fillSinglesBoxes . fillSinglesCols . fillSinglesRows
 	where
@@ -91,57 +98,86 @@ fillSingles = fillSinglesBoxes . fillSinglesCols . fillSinglesRows
 	fillSinglesCols = transpose . applyCols fillSinglesGroup (:) []
 	fillSinglesBoxes = boxToRow . applyBoxes fillSinglesGroup (:) (++) []
 
-solveSimple :: [[Int]] -> ([[Int]],Bool)
+-- Apply fillSingles until either the puzzle is solved, in which case returning
+-- (theSolution, True), or until no more progress is made, returning
+-- (ourProgress, False)
+solveSimple :: [[Int]] -> ([[Int]], Bool)
 solveSimple xs
 	| xs == a   = (a, False)
 	| isSolved a = (a, True)
 	| otherwise = solveSimple a
 	where a = fillSingles xs
 
-type Board = [[Domain]]
-type Domain = [Int]
-type Coord = (Int,Int)
-type Arc = (Coord,Coord)
+----- PART 2: AC3 Solver -----
 
+-- domain is a list of possible values a cell can take on
+type Domain = [Int]
+
+-- board is a matrix of domains, one for each cell in the 9x9 puzzle
+type Board = [[Domain]]
+
+-- a location on a board
+type Coord = (Int, Int)
+
+-- a relation between two locations on the board; generally, the domain of the
+-- first location is being constrained by the domain of the second
+type Arc = (Coord, Coord)
+
+-- returns the value at the position in the matrix given by the coord argument
 navigate :: [[a]] -> Coord -> a
 navigate m (0,0) = sHead $ sHead m
 navigate m (x,0) = navigate ((sTail $ sHead m):(sTail m)) (x-1,0)
 navigate m (x,y) = navigate (sTail m) (x,y-1)
 
-deleteFromRow :: [Domain] -> Int -> Int -> ([Domain],Bool)
-deleteFromRow [] _ _ = ([],False)
+-- remove a value from a list of domains, coupled with a boolean telling if
+-- anything actually happened
+deleteFromRow :: [Domain] -> Int -> Int -> ([Domain], Bool)
+deleteFromRow [] _ _ = ([], False)
 deleteFromRow (x:xs) y r
-	| y == 0    = ((delete r x):xs,elem r x)
-	| otherwise = let (d,b) = deleteFromRow xs (y-1) r in (x:d,b)
+	| y == 0    = ((delete r x):xs, elem r x)
+	| otherwise = let (d, b) = deleteFromRow xs (y-1) r in (x:d, b)
 
-deleteFromDomain :: [[Domain]] -> Coord -> Int -> ([[Domain]],Bool)
-deleteFromDomain (h:tl) (x,y) r | y == 0 = 
-	let (d,b) = deleteFromRow h x r in (d:tl,b)
-deleteFromDomain (h:tl) (x,y) r          = 
-	let (d,b) = deleteFromDomain tl (x,y-1) r in (h:d,b)
+-- Recurses until we are on the right row and then deletes a value from
+-- the domains in that row
+deleteFromDomain :: [[Domain]] -> Coord -> Int -> ([[Domain]], Bool)
+deleteFromDomain (h:tl) (x, y) r | y == 0 = 
+	let (d, b) = deleteFromRow h x r in (d:tl, b)
+deleteFromDomain (h:tl) (x, y) r          = 
+	let (d, b) = deleteFromDomain tl (x, y-1) r in (h:d, b)
 
+-- Helper for domainify; converts a list of ints to a list of domains;
+-- 0 represents - so a cell with that value takes on [1..9], otherwise the
+-- domain is the single value
 domainifyRow :: [Int] -> [Domain]
 domainifyRow [] = []
 domainifyRow (x:xs)
 	| x == 0    = [1..9]:(domainifyRow (xs))
 	| otherwise = [x]:(domainifyRow (xs))
 
+-- Converts a puzzle to a [[Domain]] using the domainifyRow helper
 domainify :: [[Int]] -> [[Domain]]
 domainify []      = []
 domainify ([]:xs) = domainify xs
 domainify (x:xs) = (domainifyRow x):(domainify xs)
 
+-- Helper for undomainify; converts a list of domains into a list of ints;
+-- if a domain only has one element, that is the value in the output, otherwise
+-- the value is 0, corresponding to -
 undomainifyRow :: [Domain] -> [Int]
 undomainifyRow [] = []
 undomainifyRow (x:xs) = case x of
 	[a] -> a:(undomainifyRow xs)
 	otherwise -> 0:(undomainifyRow xs) 
 
+-- Converts a [[Domain]] into an actual puzzle representation
 undomainify :: [[Domain]] -> [[Int]]
 undomainify [] = []
 undomainify ([]:xs) = undomainify xs
 undomainify (x:xs) = (undomainifyRow x):(undomainify xs)
 
+-- Return a list of all the arcs beginning at a certain coordinate; i.e. a list 
+-- of all arcs of the form (x, y), where x is the input and y is a cell that
+-- constrains the domain of x
 addArcs :: Coord -> [Arc]
 addArcs p@(x,y) = foldr f [] $ (cols ++ rows ++ boxes)
 	where
@@ -154,6 +190,10 @@ addArcs p@(x,y) = foldr f [] $ (cols ++ rows ++ boxes)
 	f = (\o l -> let i = coord o in if not $ elem i l then (i:l) else l)
 	coord j = (p,j)
 
+-- Takes in a coordinate and a list of arcs and returns a list of arcs that
+-- is the input list with all arcs of the form (x, y), where y is the input
+-- coord and x is a coord it constrains, which were not in the input list,
+-- added to the list's end
 arcsTo :: Coord -> [Arc] -> [Arc]
 arcsTo p@(x,y) al = foldl f al $ map (\l -> (l,p)) $ (cols ++ rows ++ boxes)
 	where
@@ -165,17 +205,24 @@ arcsTo p@(x,y) al = foldl f al $ map (\l -> (l,p)) $ (cols ++ rows ++ boxes)
 	yStart = (div y 3) * 3
 	f = (\l o -> if not $ elem o l then (l ++ [o]) else l) 
 
+-- Gets the initial list of arcs
 initQueue :: [Arc]
 initQueue = foldr (\x y -> addArcs x ++ y) [] [(x,y) | x <- [0..8], y <- [0..8]]
 
+-- Takes in a domain matrix and an arc and returns a Just [[Domain]] 
+-- constrained by that arc or Nothing if constraining by that arc caused there
+-- to be no solution
 arcReduce :: [[Domain]] -> Arc -> Maybe [[Domain]]
 arcReduce m (a,b) = 
 	case (navigate m b) of
 		[x] -> case (deleteFromDomain m a x) of
-			(d,True) -> Just d
-			(_,False) -> Nothing
+			(d, True) -> Just d
+			(_, False) -> Nothing
 		_ -> Nothing 
 
+-- Calls arcReduce until the arc queue is empty, returning either 
+-- Just [[Domain]] which is our progress toward a solution after one iteration
+-- of AC3 or Nothing if there is no solution with this input
 processArcs :: [[Domain]] -> [Arc] -> Maybe [[Domain]]
 processArcs m [] = Just m
 processArcs m (x@(a,b):xs) = case (arcReduce m x) of
@@ -192,13 +239,18 @@ processArcs m (x@(a,b):xs) = case (arcReduce m x) of
 --		[] -> throw ImpossibleSudokuException
 --		_ -> d
 
+-- Takes in a board and applies solveSimple to it followed by the AC3 
+-- algorithm.
 solveHard :: [[Int]] -> Maybe [[Int]]
 solveHard s = case solveSimple s of
-	(c,True) -> Just c
-	(c,False) -> case processArcs (domainify c) initQueue of
+	(c, True) -> Just c
+	(c, False) -> case processArcs (domainify c) initQueue of
 		Just d -> Just (undomainify d)
 		Nothing -> Nothing
 
+----- PART 3: Guessing -----
+
+-- Finds the cell with the smallest unsolved domain
 smallestDomain :: [[Domain]] -> Coord -> Coord -> Int -> Coord
 smallestDomain [] _ c _ = c
 smallestDomain ([]:xs) (x,y) c m = smallestDomain xs (0,y+1) c m
@@ -207,24 +259,32 @@ smallestDomain ((h:tl):xs) (x,y) c m
 	| otherwise    = smallestDomain (tl:xs) (x+1,y) c m
 	where v = length h
 
+-- helper for guessCell; goes through a row until at the right cell, then fills
+-- it in with the guessed value
 guessCellRow :: [Domain] -> Int -> Int -> [Domain]
 guessCellRow (_:tl) 0 i = [i]:tl
 guessCellRow (h:tl) x i = h:(guessCellRow tl (x-1) i)
 
+-- takes in a coordinate and a value to insert and inserts it
 guessCell :: [[Domain]] -> Coord -> Int -> [[Domain]]
 guessCell (h:tl) (x,0) i = (guessCellRow h x i):tl
 guessCell (h:tl) (x,y) i = h:(guessCell tl (x,y-1) i)
 
+-- takes in a board, finds the cell with the smallest unsolved domain, and
+-- returns a list of boards with each possible value for that cell filled in
 branchBoards :: Board -> [Board]
 branchBoards d = map (\l -> guessCell d sd l) $ navigate d sd
 	where sd = smallestDomain d (0,0) (0,0) 10
 
+-- takes in a list of boards, applies AC3 to the first one, checks if that 
+-- solved it, returns if yes, otherwise branches and tries again
 guessBoards :: [Board] -> Board
 guessBoards (x:xs) = case solveHard $ undomainify x of
 	Just u -> if isSolved u
  		  then domainify u
 		  else guessBoards (xs ++ branchBoards x)
 	Nothing -> guessBoards xs
-	
+
+-- takes in a puzzle and solves it using the guessing algorithm
 solveGuess :: [[Int]] -> [[Int]]
 solveGuess d = undomainify $ guessBoards [(domainify d)]
