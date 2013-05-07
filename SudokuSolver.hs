@@ -22,6 +22,8 @@ colToRow :: [[Int]] -> [[Int]]
 colToRow ([]:_) = []
 colToRow rm     = (map sHead rm):(colToRow (map sTail rm))
 
+-- Helper for rowToBox function below that recursively breaks down the
+-- sudoku into box units
 rTBHelper :: [[Int]] -> [[Int]]
 rTBHelper [] = []
 rTBHelper w  = (foldl (++) [] (take 3 w)):(rTBHelper $ drop 3 w)
@@ -44,15 +46,18 @@ applyCols :: ([Int] -> a) -> (a -> b -> b) -> b -> [[Int]] -> b
 applyCols _ _ b ([]:_) = b
 applyCols ag f b l = f (ag (map sHead l)) (applyCols ag f b (map sTail l))
 
+-- Helper for applyBoxes function below
 aBHelper :: [[Int]] -> [[Int]]
 aBHelper [] = []
 aBHelper w  = (foldl (++) [] (take 3 w)):(aBHelper $ drop 3 w)
 
+-- Folds a function through each "box" unit of an [[Int]]
 applyBoxes :: ([Int] -> a) -> (a -> b -> b) -> (b -> b -> b) -> b -> [[Int]] -> b
 applyBoxes _ _ _ b ([]:_) = b
 applyBoxes ag f c b l = let boxes = map (take 3) l in
 	c (foldr f b $ map ag $ aBHelper boxes) (applyBoxes ag f c b (map (drop 3) l)) 
 
+-- Helper function for boxToRow function below
 bTRHelper :: [[Int]] -> [[Int]]
 bTRHelper [] = []
 bTRHelper ([]:[]:[]:xs) = bTRHelper xs
@@ -76,7 +81,8 @@ isSolved rm = verifyRows rm && verifyCols rm && verifyBoxes rm
 
 -- Checks if one value is missing from a line
 oneMissing :: [Int] -> Int
-oneMissing l | length (filter (==0) l) == 1 = sHead $ filter (\x -> not $ elem x l) [1..9]
+oneMissing l | length (filter (==0) l) == 1 = sHead $ filter 
+	(\x -> not $ elem x l) [1..9]
 oneMissing l = -1
 
 -- Replaces a zero in a line with a given value
@@ -110,26 +116,26 @@ solveSimple xs
 
 ----- PART 2: AC3 Solver -----
 
--- domain is a list of possible values a cell can take on
+-- Domain is a list of possible values a cell can take on
 type Domain = [Int]
 
--- board is a matrix of domains, one for each cell in the 9x9 puzzle
+-- Board is a matrix of domains, one for each cell in the 9x9 puzzle
 type Board = [[Domain]]
 
--- a location on a board
+-- A location on a board
 type Coord = (Int, Int)
 
--- a relation between two locations on the board; generally, the domain of the
+-- A relation between two locations on the board; generally, the domain of the
 -- first location is being constrained by the domain of the second
 type Arc = (Coord, Coord)
 
--- returns the value at the position in the matrix given by the coord argument
+-- Returns the value at the position in the matrix given by the coord argument
 navigate :: [[a]] -> Coord -> a
 navigate m (0,0) = sHead $ sHead m
 navigate m (x,0) = navigate ((sTail $ sHead m):(sTail m)) (x-1,0)
 navigate m (x,y) = navigate (sTail m) (x,y-1)
 
--- remove a value from a list of domains, coupled with a boolean telling if
+-- Remove a value from a list of domains, coupled with a boolean telling if
 -- anything actually happened
 deleteFromRow :: [Domain] -> Int -> Int -> ([Domain], Bool)
 deleteFromRow [] _ _ = ([], False)
@@ -146,7 +152,7 @@ deleteFromDomain (h:tl) (x, y) r          =
 	let (d, b) = deleteFromDomain tl (x, y-1) r in (h:d, b)
 
 -- Helper for domainify; converts a list of ints to a list of domains;
--- 0 represents - so a cell with that value takes on [1..9], otherwise the
+-- 0 represents "-" so a cell with that value takes on [1..9], otherwise the
 -- domain is the single value
 domainifyRow :: [Int] -> [Domain]
 domainifyRow [] = []
@@ -184,7 +190,8 @@ addArcs p@(x,y) = foldr f [] $ (cols ++ rows ++ boxes)
 	cols = delete p $ map (\l -> (x,l)) $ [0..8]
 	rows = delete p $ map (\l -> (l,y)) $ [0..8]
 	boxes = delete p boxesW
-	boxesW = [(a,b) | a <- [xStart..(xStart + 2)], b <- [yStart..(yStart + 2)]]
+	boxesW = [(a,b) | a <- [xStart..(xStart + 2)], 
+		b <- [yStart..(yStart + 2)]]
 	xStart = (div x 3) * 3
 	yStart = (div y 3) * 3
 	f = (\o l -> let i = coord o in if not $ elem i l then (i:l) else l)
@@ -200,7 +207,8 @@ arcsTo p@(x,y) al = foldl f al $ map (\l -> (l,p)) $ (cols ++ rows ++ boxes)
 	cols = delete p $ map (\l -> (x,l)) $ [0..8]
 	rows = delete p $ map (\l -> (l,y)) $ [0..8]
 	boxes = delete p boxesW
-	boxesW = [(a,b) | a <- [xStart..(xStart + 2)], b <- [yStart..(yStart + 2)]]
+	boxesW = [(a,b) | a <- [xStart..(xStart + 2)], 
+		b <- [yStart..(yStart + 2)]]
 	xStart = (div x 3) * 3
 	yStart = (div y 3) * 3
 	f = (\l o -> if not $ elem o l then (l ++ [o]) else l) 
@@ -231,14 +239,6 @@ processArcs m (x@(a,b):xs) = case (arcReduce m x) of
 		_ -> processArcs d $ arcsTo a xs
 	Nothing -> processArcs m xs
 
---processArcsDebug :: [[Domain]] -> [Arc] -> [[Domain]]
---processArcsDebug m [] = []
---processArcsDebug m (x@(a,b):xs) = case (arcReduce m x) of
---	Nothing -> processArcsDebug m xs
---	Just d -> case (navigate d a) of
---		[] -> throw ImpossibleSudokuException
---		_ -> d
-
 -- Takes in a board and applies solveSimple to it followed by the AC3 
 -- algorithm.
 solveHard :: [[Int]] -> Maybe [[Int]]
@@ -259,24 +259,24 @@ smallestDomain ((h:tl):xs) (x,y) c m
 	| otherwise    = smallestDomain (tl:xs) (x+1,y) c m
 	where v = length h
 
--- helper for guessCell; goes through a row until at the right cell, then fills
+-- Helper for guessCell; goes through a row until at the right cell, then fills
 -- it in with the guessed value
 guessCellRow :: [Domain] -> Int -> Int -> [Domain]
 guessCellRow (_:tl) 0 i = [i]:tl
 guessCellRow (h:tl) x i = h:(guessCellRow tl (x-1) i)
 
--- takes in a coordinate and a value to insert and inserts it
+-- Takes in a coordinate and a value to insert and inserts it appropriately
 guessCell :: [[Domain]] -> Coord -> Int -> [[Domain]]
 guessCell (h:tl) (x,0) i = (guessCellRow h x i):tl
 guessCell (h:tl) (x,y) i = h:(guessCell tl (x,y-1) i)
 
--- takes in a board, finds the cell with the smallest unsolved domain, and
+-- Takes in a board, finds the cell with the smallest unsolved domain, and
 -- returns a list of boards with each possible value for that cell filled in
 branchBoards :: Board -> [Board]
 branchBoards d = map (\l -> guessCell d sd l) $ navigate d sd
 	where sd = smallestDomain d (0,0) (0,0) 10
 
--- takes in a list of boards, applies AC3 to the first one, checks if that 
+-- Takes in a list of boards, applies AC3 to the first one, checks if that 
 -- solved it, returns if yes, otherwise branches and tries again
 guessBoards :: [Board] -> Board
 guessBoards (x:xs) = case solveHard $ undomainify x of
@@ -284,7 +284,8 @@ guessBoards (x:xs) = case solveHard $ undomainify x of
  		  then domainify u
 		  else guessBoards (xs ++ branchBoards x)
 	Nothing -> guessBoards xs
+guessBoards _ = throw UnsolvableSudokuException
 
--- takes in a puzzle and solves it using the guessing algorithm
+-- Takes in a puzzle and solves it using the guessing algorithm
 solveGuess :: [[Int]] -> [[Int]]
 solveGuess d = undomainify $ guessBoards [(domainify d)]

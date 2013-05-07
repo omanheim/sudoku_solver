@@ -7,7 +7,6 @@ import SudokuExceptions
 import SudokuSolver
 
 -- Converts a Sudoku string into an [[Int]]
--- ** can add counter later for line length
 format :: String -> [Int] -> [[Int]]
 format [] l        = [reverse l]
 format ('\n':' ':xs) l = (reverse l):(format xs [])

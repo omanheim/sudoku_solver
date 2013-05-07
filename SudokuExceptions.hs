@@ -9,10 +9,10 @@ data InvalidSudokuFormatException = InvalidSudokuFormatException
 
 instance Exception InvalidSudokuFormatException
 
-data ImpossibleSudokuException = ImpossibleSudokuException
+data UnsolvableSudokuException = UnsolvableSudokuException
   deriving (Show,Typeable)
 
-instance Exception ImpossibleSudokuException
+instance Exception UnsolvableSudokuException
 
 data HeadException = HeadException 
   deriving (Show,Typeable)
